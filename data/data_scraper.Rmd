@@ -1,0 +1,321 @@
+---
+title: "Richard Moley Article Scraping"
+author: "Bridget Lang"
+date: "2024-11-16"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(pdftools)
+library(dplyr)
+library(rio)
+library(tidytext)
+library(quanteda)
+library(knitr)
+library(forcats)
+library(tm)
+library(topicmodels)
+library(lda)
+library(ldatuning)
+```
+
+
+```{r}
+#from: https://stackoverflow.com/a/68032558
+getMatch = function(rexp, str) regmatches(str, regexpr(rexp, str))
+
+index <- read.csv("./AI_extracted_all/moley_extracted_index.csv")
+
+index <- rename(index, filename = new_name)
+
+#remove duplicate files
+
+index <- index %>% distinct(index$filename, .keep_all = TRUE)
+
+
+
+
+```
+
+# Compiling text
+```{r}
+#Compiling text for moley_newsweek
+compile_text <- function(filename) {
+    articles_df_temp <-read_lines(glue::glue("./AI_extracted_all/{filename}"))%>%
+    as_tibble() %>%
+    mutate(filename = filename)
+  # Bind results to master articles_df
+  # <<- returns to global environment
+    articles_text <<- articles_text %>%
+      bind_rows(articles_df_temp)
+}
+
+# Get rid
+articles_text <- tibble()
+
+sapply(index$filename, compile_text)
+
+articles_text <- left_join(articles_text, select(index, filename, Year), by = "filename")
+
+articles_text <- rename(articles_text, year = Year)
+
+articles_text <- articles_text %>%
+  select(value, year, filename)
+
+```
+# Clean up articles text
+```{r}
+
+articles_text$value <- iconv(articles_text$value, from = "", to = "UTF-8", sub = "")  # Replace invalid characters with ""
+
+# Additional step to remove non-printable and problematic characters
+articles_text$value <- gsub("[^[:print:]]+", " ", articles_text$value)  # Remove non-printable characters
+
+articles_text$value <- gsub("-", "", articles_text$value)  
+
+
+articles_text$value <- gsub("\\s+", " ", trimws(articles_text$value))  # Normalize whitespace
+
+write.csv(articles_text, "./articles_text.csv")
+
+
+
+```
+
+# Make a dataframe with one word per row
+```{r}
+articles_text <- articles_text %>% rename(sentence = value)
+
+data(stop_words)
+one_word_per_row <- articles_text %>% mutate(sentence= str_squish(sentence)) |> 
+  mutate(text = tolower(sentence)) |>  
+  mutate(text = gsub("\\d+", "", text)) |>
+  mutate(text = str_replace_all(text, "- ", "")) %>% 
+  unnest_tokens(word, text, token="ngrams", n=1 ) %>%
+  filter(!word %in% stop_words$word) %>%
+  filter(!is.na(word))
+one_word_per_row
+
+write_csv(one_word_per_row, "./one_word_per_row.csv")
+```
+# Create bigrams and clean them
+```{r}
+bigrams <- articles_text %>% mutate(sentence= str_squish(sentence)) |> 
+  mutate(text = tolower(sentence)) |>  
+  mutate(text = gsub("\\d+", "", text)) |>
+  mutate(text = str_replace_all(text, "raymond", "")) %>% 
+  mutate(text = str_replace_all(text, "newsweek", "")) %>% 
+  mutate(text = str_replace_all(text, "image", "")) %>%
+  mutate(text = str_replace_all(text, "perspective", "")) %>%
+  mutate(text = str_replace_all(text, "- ", "")) %>%
+  mutate(text = str_replace_all(text, " -", "")) %>%
+  mutate(text = str_replace_all(text, " - ", "")) %>%
+  unnest_tokens(word, text, token="ngrams", n=2 ) %>%
+  filter(!word %in% stop_words$word) %>%
+  filter(!word == "minor inaccuracies") %>%
+  filter(!word == "text extraction") %>%
+  filter(!word == "text version") %>%
+  filter(!word == "patent office") %>%
+  filter(!word == "u.s. patent") %>%
+  filter(!word == "u.s patent") %>%
+  filter(!word == "avoid overlapping") %>%
+  filter(!word == "overlapping columns") %>%
+  filter(!word == "extracted text") %>%
+  filter(!word == "provided pdf") %>%
+  filter(!word == "pdf formatted") %>%
+  filter(!word == "provided text") %>%
+  filter(!word == "provided note") %>%
+  filter(!word == "column layout") %>%
+   filter(!word == "text file") %>%
+  filter(!word == "registered u.s") %>%
+  filter(!is.na(word))
+
+bigrams
+```
+
+# Cleaning bigrams
+```{r}
+bigrams_separated <- bigrams %>%
+  separate(word, c("word1", "word2"), sep = " ")
+
+#bigrams with stop words filtered
+
+bigrams_filtered <- 
+  bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+write.csv(bigrams_filtered, "bigrams_filtered.csv")
+
+bigram_counts <- bigrams_filtered %>%
+  count(word1, word2, sort = TRUE) %>% 
+  filter(!is.na(word1))
+
+write.csv(bigram_counts, "bigram_counts.csv")
+
+top_20_bigrams <- bigram_counts |> 
+  head(20) |> 
+  mutate(bigram = paste(word1, "", word2)) |> 
+  select(bigram, n)
+
+
+top_20_bigrams
+write.csv(top_20_bigrams, "top_20_bigrams.csv")
+
+```
+
+
+```{r}
+textdata <- articles_text %>%
+  select(filename, sentence, year) %>% 
+  as.data.frame() %>% 
+  rename(doc_id = filename, text= sentence)
+
+# load stopwords
+english_stopwords <- readLines("https://slcladal.github.io/resources/stopwords_en.txt", encoding = "UTF-8")
+# create corpus object
+corpus <- Corpus(DataframeSource(textdata))
+# Preprocessing chain
+processedCorpus <- tm_map(corpus, content_transformer(tolower))
+processedCorpus <- tm_map(processedCorpus, removeWords, english_stopwords)
+processedCorpus <- tm_map(processedCorpus, removePunctuation, preserve_intra_word_dashes = TRUE)
+processedCorpus <- tm_map(processedCorpus, removeNumbers)
+processedCorpus <- tm_map(processedCorpus, stemDocument, language = "en")
+processedCorpus <- tm_map(processedCorpus, stripWhitespace)
+```
+
+```{r tm3a}
+#DTM: rows correspond to the documents in the corpus. Columns correspond to the terms in the documents. Cells correspond to the weights of the terms. (Girder)
+# compute document term matrix with terms >= minimumFrequency
+minimumFrequency <- 5
+DTM <- DocumentTermMatrix(processedCorpus, control = list(bounds = list(global = c(minimumFrequency, Inf))))
+# have a look at the number of documents and terms in the matrix
+dim(DTM)
+# due to vocabulary pruning, we have empty rows in our DTM
+# LDA does not like this. So we remove those docs from the
+# DTM and the metadata
+sel_idx <- slam::row_sums(DTM) > 0
+DTM <- DTM[sel_idx, ]
+textdata <- textdata[sel_idx, ]
+
+``` 
+### New decade column created
+```{r}
+textdata$decade <- paste0(substr(textdata$year, 0, 3), "0")
+```
+
+### Set K Value for number of topics
+```{r}
+# number of topics
+# K <- 20
+K <- 6
+```
+
+### Run LDA, Latent Dirichlet Allocation
+```{r}
+# set random number generator seed
+set.seed(9161)
+#Latent Dirichlet Allocation, LDA
+topicModel2 <- LDA(DTM, K, method="Gibbs", control=list(iter = 500, verbose = 25, alpha = 0.2))
+tmResult <- posterior(topicModel2)
+theta <- tmResult$topics
+beta <- tmResult$terms
+topicNames <- apply(terms(topicModel2, 10), 2, paste, collapse = " ")  # reset topicnames
+```
+### Mean topic proportions per decade
+
+```{r}
+# Step 1: Check dimensions
+n_theta <- nrow(theta)
+n_textdata <- length(textdata$decade)
+
+cat("Number of rows in theta: ", n_theta, "\n")
+cat("Number of documents in textdata: ", n_textdata, "\n")
+```
+
+
+```{r}
+# Check if textdata contains all the documents in theta
+common_ids <- intersect(rownames(theta), textdata$doc_id) # Assuming textdata has a 'doc_id' column
+
+# Filter textdata to include only the documents present in theta
+textdata_filtered <- textdata[textdata$doc_id %in% common_ids, ]
+
+# Check dimensions after filtering
+n_textdata_filtered <- nrow(textdata_filtered)
+cat("Number of documents in filtered textdata: ", n_textdata_filtered, "\n")
+```
+
+```{r}
+# Ensure the lengths match now
+if (n_theta != n_textdata_filtered) {
+  stop("The number of rows in 'theta' still does not match the length of 'textdata_filtered$decade'.")
+}
+
+# Align rownames of theta with filtered textdata
+theta_aligned <- theta[rownames(theta) %in% textdata_filtered$doc_id, ]
+
+# Optional: Verify the order of documents
+if (!all(rownames(theta_aligned) == textdata_filtered$doc_id)) {
+  # If the order doesn't match, reorder one to match the other
+  textdata_filtered <- textdata_filtered[match(rownames(theta_aligned), textdata_filtered$doc_id), ]
+}
+
+# Ensure they are now aligned and can be combined
+if (!all(rownames(theta_aligned) == textdata_filtered$doc_id)) {
+  stop("The document IDs still do not match. Please check the data alignment.")
+}
+
+# Step 2: Combine data
+topic_data <- data.frame(theta_aligned, decade = textdata_filtered$decade)
+
+# Step 3: Aggregate data
+topic_proportion_per_decade <- aggregate(. ~ decade, data = topic_data, FUN = mean)
+
+
+# get mean topic proportions per decade
+# topic_proportion_per_decade <- aggregate(theta, by = list(decade = textdata$decade), mean)
+# set topic names to aggregated columns
+colnames(topic_proportion_per_decade)[2:(K+1)] <- topicNames
+# reshape data frame
+vizDataFrame <- melt(topic_proportion_per_decade, id.vars = "decade")
+
+```
+#Examine topic names
+
+```{r}
+#enframe(): Converts a named list into a dataframe.
+topics <- enframe(topicNames, name = "number", value = "text") %>% 
+  unnest(cols = c(text)) 
+  
+write.csv(topics, "topics.csv")
+
+```
+### Add categories
+```{r}
+
+
+
+vizDataFrame <- vizDataFrame %>% 
+  mutate(category = case_when(
+    str_detect(variable,  "state feder law nation govern unit constitut make depart foreign") ~ "federal_government",
+    str_detect(variable, "year govern tax busi product power money plan feder cost") ~ "economic",
+    str_detect(variable, "presid congress offic committe newsweek senat hous bill democrat republican") ~ "political",
+    str_detect(variable, "moley raymond provid perspect text imag column minor extract due") ~ "meta_data",
+     str_detect(variable, "polit great public american man social men peopl british econom") ~ "american_ideals",
+    str_detect(variable, "parti vote elect republican democrat state polit labor candid peopl") ~ "labor_party_republican",
+    ))
+
+write.csv(vizDataFrame, "vizDataFrame.csv")
+
+```
+
+# Fact Check and Validate Topics
+
+Topic 1: lynchings "counti citi night mile jail day town morn march juli" 
+Topic 2: criticizing_lynchings "law crime peopl lynch great excit state good citizen countri" 
+Topic 3: negro_lynching "lynch mob negro jail men hang night crowd prison attempt" 
+Topic 4: female_victim "negro murder white lynch man kill year assault charg mrs" 
+Topic 5: 5_legal_proceedings "sheriff state court juri governor order offic prison judg deputi" 
+Topic 6:  lynch_mob "bodi fire shot hang hous tree found street rope door" 
+
