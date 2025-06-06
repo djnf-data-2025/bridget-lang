@@ -89,13 +89,16 @@ library(SnowballC)
 library(flextable)
 ```
 
+
+<iframe src='https://flo.uri.sh/visualisation/23601140/embed' title='Interactive or visual content' class='flourish-embed-iframe' frameborder='0' scrolling='no' style='width:100%;height:600px;' sandbox='allow-same-origin allow-forms allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation'></iframe><div style='width:100%!;margin-top:4px!important;text-align:right!important;'><a class='flourish-credit' href='https://public.flourish.studio/visualisation/23601140/?utm_source=embed&utm_campaign=visualisation/23601140' target='_top' style='text-decoration:none!important'><img alt='Made with Flourish' src='https://public.flourish.studio/resources/made_with_flourish.svg' style='width:105px!important;height:16px!important;border:none!important;margin:0!important;'> </a></div>
+
 ## Statistics about the data 
 ```{r echo = F}
 
-article_index <-  read.csv("./data/article_index.csv")
+article_index <-  read.csv("../data/article_index.csv")
 article_index <- rename(article_index, year = Year)
 
-articles_text <-  read.csv("./data/articles_text.csv")
+articles_text <-  read.csv("../data/articles_text.csv")
 
 nrows <- nrow(article_index)
 ncols <- ncol(article_index)
@@ -143,7 +146,7 @@ glue::glue("The number of columns is {ncols}")
 ## Top 20 Bigrams
 ```{r echo = F}
 
-top_20_bigrams <-  read.csv("./data/top_20_bigrams.csv")
+top_20_bigrams <-  read.csv("../data/top_20_bigrams.csv")
 
 top_20_bigrams <- top_20_bigrams %>%
   mutate(bigram = fct_reorder(bigram, n))
@@ -169,7 +172,7 @@ I generated the lists to determine economic and political articles using ChatGPT
 "Add the words economy, economic, money, and union"
 ```{r echo = F}
 
-economic_terms <- read.csv("./data/Economic_Terms.csv")
+economic_terms <- read.csv("../data/Economic_Terms.csv")
 kable(head(economic_terms, 20), caption="Sample of Economic Terms")
 
 ```
@@ -179,13 +182,13 @@ kable(head(economic_terms, 20), caption="Sample of Economic Terms")
   
 ```{r echo = F}
 
-political_terms <- read.csv("./data/Political_Terms.csv")
+political_terms <- read.csv("../data/Political_Terms.csv")
 kable(head(political_terms, 20), caption="Sample of Political Terms")
 
 ```
 
 ```{r echo = F}
-one_word_per_row <- read.csv("./data/one_word_per_row.csv")
+one_word_per_row <- read.csv("../data/one_word_per_row.csv")
 
 count_word_per_year <- function(data, target_word) {
   data %>%
@@ -486,11 +489,11 @@ ggplot(decade_sentiment_all, aes(sentiment, percent, fill=decade)) +
 For some reason the graph below is turning gray. I get the message "Scale for fill is already present. Adding another scale for fill, which will replace the existing scale." when I try to load it, and also trying to load the graph in the topic model sample exercise. I am not sure what to do, looking online did not help. I am uploading a screenshot of the graph here: https://github.com/blangumd/CompText_Jour_FinalProject/blob/main/topic_model_vis.png
 
 ```{r echo = F, results = 'hide', error=F, warning=F, message=F}
-topics <- read.csv("./data/topics.csv")
+topics <- read.csv("../data/topics.csv")
 
 kable(topics, caption="Topics")
 
-vizDataFrame <- read.csv("./data/vizDataFrame.csv")
+vizDataFrame <- read.csv("../data/vizDataFrame.csv")
 
 ggplot(vizDataFrame, aes(x=decade, y=value, fill=category)) + 
   geom_bar(stat = "identity") + ylab("proportion") + 
