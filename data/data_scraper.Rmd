@@ -5,6 +5,21 @@ date: "2024-11-16"
 output: html_document
 ---
 ```{r}
+
+# install.packages("tidyverse")
+# install.packages("pdftools")
+# install.packages("dplyr")
+# install.packages("rio")
+# install.packages("tidytext")
+# install.packages("quanteda")
+# install.packages("knitr")
+# install.packages("forcats")
+# install.packages("tm")
+# install.packages("topicmodels")
+# install.packages("lda")
+# install.packages("ldatuning")
+# install.packages("reshape")
+
 library(tidyverse)
 library(pdftools)
 library(dplyr)
@@ -17,6 +32,7 @@ library(tm)
 library(topicmodels)
 library(lda)
 library(ldatuning)
+library(reshape)
 ```
 
 
@@ -26,7 +42,7 @@ getMatch = function(rexp, str) regmatches(str, regexpr(rexp, str))
 
 index <- read.csv("./AI_extracted_all/moley_extracted_index.csv")
 
-index <- rename(index, filename = new_name)
+index <- dplyr::rename(index,filename = new_name)
 
 #remove duplicate files
 
@@ -57,7 +73,7 @@ sapply(index$filename, compile_text)
 
 articles_text <- left_join(articles_text, select(index, filename, Year), by = "filename")
 
-articles_text <- rename(articles_text, year = Year)
+articles_text <-dplyr::rename(articles_text, year = Year)
 
 articles_text <- articles_text %>%
   select(value, year, filename)
@@ -84,7 +100,7 @@ write.csv(articles_text, "./articles_text.csv")
 
 # Make a dataframe with one word per row
 ```{r}
-articles_text <- articles_text %>% rename(sentence = value)
+articles_text <- articles_text %>% dplyr::rename(sentence = value)
 
 data(stop_words)
 one_word_per_row <- articles_text %>% mutate(sentence= str_squish(sentence)) |> 
@@ -169,7 +185,7 @@ write.csv(top_20_bigrams, "top_20_bigrams.csv")
 textdata <- articles_text %>%
   select(filename, sentence, year) %>% 
   as.data.frame() %>% 
-  rename(doc_id = filename, text= sentence)
+  dplyr::rename(doc_id = filename, text= sentence)
 
 # load stopwords
 english_stopwords <- readLines("https://slcladal.github.io/resources/stopwords_en.txt", encoding = "UTF-8")

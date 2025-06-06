@@ -31,6 +31,30 @@ Some of these libraries are used only in this webpage, but this is all libraries
 
 ```{r echo = T, results = 'hide', error=F, warning=F, message=F}
 
+# install.packages("textdata")
+# install.packages("tidyverse")
+# install.packages("pdftools")
+# install.packages("dplyr")
+# install.packages("rio")
+# install.packages("tidytext")
+# install.packages("quanteda")
+# install.packages("knitr")
+# install.packages("formattable")
+# install.packages("forcats")
+# install.packages("readtext")
+# install.packages("tm")
+# install.packages("topicmodels")
+# install.packages("lda")
+# install.packages("ldatuning")
+# install.packages("DT")
+# install.packages("kableExtra")
+# install.packages("reshape2")
+# install.packages("ggplot2")
+# install.packages("wordcloud")
+# install.packages("pals")
+# install.packages("SnowballC")
+# install.packages("flextable")
+
 
 library(textdata)
 library(tidyverse)
